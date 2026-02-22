@@ -1,0 +1,1 @@
+﻿src/app/actions/analyzeHazard.ts(4,42): error TS2305: Module '"node-appwrite"' has no exported member 'InputFile'.
