@@ -35,8 +35,8 @@ export function ReportRemediationTabs({ plan, description }: { plan: Remediation
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         className={`flex-1 px-4 py-3.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${activeTab === tab.key
-                                ? 'border-primary text-primary bg-background/80'
-                                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                            ? 'border-primary text-primary bg-background/80'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
                             }`}
                     >
                         {tab.label}
@@ -163,11 +163,13 @@ export function ReportRemediationTabs({ plan, description }: { plan: Remediation
                                     <div className="space-y-1">
                                         <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Est. Time</p>
                                         <p className="text-lg font-bold text-foreground">
-                                            {plan.complexity.laborHoursRange
-                                                ? `${plan.complexity.laborHoursRange} HRS`
-                                                : plan.complexity.laborHours
-                                                    ? `${plan.complexity.laborHours} HRS`
-                                                    : "N/A"}
+                                            {(() => {
+                                                const value = plan.complexity.laborHoursRange || plan.complexity.laborHours?.toString();
+                                                if (!value) return "N/A";
+                                                const normalized = value.toUpperCase();
+                                                if (normalized.includes('HRS') || normalized.includes('HOUR')) return value;
+                                                return `${value} HRS`;
+                                            })()}
                                         </p>
                                     </div>
                                     <div className="w-11 h-11 rounded-full bg-amber-500/10 flex items-center justify-center">

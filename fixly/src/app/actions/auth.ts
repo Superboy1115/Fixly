@@ -35,7 +35,7 @@ export async function signup(email: string, password: string, name: string) {
         const cookieStore = await cookies();
         cookieStore.set('session', session.secret, {
             httpOnly: true,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',
             maxAge: 60 * 60 * 24 * 30, // 30 days
@@ -56,7 +56,7 @@ export async function login(email: string, password: string) {
         const cookieStore = await cookies();
         cookieStore.set('session', session.secret, {
             httpOnly: true,
-            secure: true,
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',
             maxAge: 60 * 60 * 24 * 30,

@@ -56,25 +56,43 @@ async function setupAppwrite() {
     }
 
     console.log('Adding Attributes to Collection...');
-    const createAttr = async (promise: Promise<any>) => {
+    const createAttr = async (name: string, promise: Promise<any>) => {
         try {
+            process.stdout.write(`   Creating attribute "${name}"... `);
             await promise;
+            console.log('✅');
         } catch (e: any) {
-            if (e.code !== 409) console.error('Error creating attribute:', e);
+            if (e.code === 409) console.log('Already exists.');
+            else {
+                console.log('❌');
+                console.error(`   Error creating attribute "${name}":`, e.message);
+            }
         }
     };
 
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'description', 2000, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'severity', 50, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'status', 50, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'coordinates', 5000, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'imageId', 255, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'remediationPlan', 10000, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'projectName', 255, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'inspectionLocation', 255, false));
-    await createAttr(databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'userId', 255, false));
+    await createAttr('description', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'description', 2000, false));
+    await createAttr('severity', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'severity', 50, false));
+    await createAttr('status', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'status', 50, false));
+    await createAttr('coordinates', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'coordinates', 5000, false));
+    await createAttr('imageId', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'imageId', 255, false));
+    await createAttr('remediationPlan', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'remediationPlan', 5000, false)); // Reduced size just in case
+    await createAttr('projectName', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'projectName', 255, false));
+    await createAttr('inspectionLocation', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'inspectionLocation', 255, false));
+    await createAttr('userId', databases.createStringAttribute(DATABASE_ID, COLLECTION_ID, 'userId', 255, false));
 
-    console.log('Attributes checked/added successfully.');
+    console.log('Attributes updated.');
+
+    // Verify attributes
+    try {
+        const collection = await databases.getCollection(DATABASE_ID, COLLECTION_ID);
+        const attributeKeys = collection.attributes.map((a: any) => a.key);
+        console.log('Current attributes in collection:', attributeKeys);
+        if (!attributeKeys.includes('remediationPlan')) {
+            console.error('❌ CRITICAL: remediationPlan is STILL MISSING after attempted creation!');
+        }
+    } catch (e: any) {
+        console.error('Error verifying attributes:', e.message);
+    }
 
     // Wait for attributes to be ready before creating indexes
     console.log('Waiting for attributes to index...');
