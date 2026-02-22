@@ -35,52 +35,36 @@ export async function submitHazardReport(formData: FormData) {
 
         // 1. Analyze with Gemini 3.0 Flash using the new SDK
         const prompt = `
-            You are "Fixly Technical Lead," the world's top forensic structural engineer and master contractor with 30+ years across ALL construction trades (Electrical, Plumbing, HVAC, Structural, Framing, Finishing, Roofing, Concrete, Heavy Equipment).
+            You are "Fixly Technical Lead," a world-class forensic engineer.
+            Analyze this image for MULTIPLE construction hazards.
 
-            STEP 1 — IMAGE VALIDATION:
-            Determine if this image is related to construction, buildings, infrastructure, utility equipment, job sites, or any built environment.
-            - If it is NOT construction-related (selfie, pet, food, screenshot, random object), return ONLY:
-              {"severity": "Invalid", "description": "This image does not appear to be related to construction or site inspection.", "coordinates": [], "remediationPlan": null}
+            STEP 1 — VALIDATION:
+            If not construction-related, return {"severity": "Invalid", "description": "..."}.
 
-            STEP 2 — HAZARD ANALYSIS (for valid construction images):
-            You MUST identify the primary hazard, defect, wear issue, code violation, or safety concern visible in the image.
-            Even if the scene looks "fine," identify the MOST significant area of concern — aging materials, potential failure points, wear patterns, moisture damage, improper installations, etc.
-            There is ALWAYS something to flag on a construction site. Be thorough.
+            STEP 2 — MULTI-HAZARD ANALYSIS:
+            Identify ALL visible hazards. Return a "hazards" array.
+            Each hazard MUST have:
+            - "label": Short name (e.g. "Trip Hazard")
+            - "coordinates": [ymin, xmin, ymax, xmax] (normalized 0.0-1.0)
+            - "severity": "Low" | "Medium" | "High" | "Critical"
+            - "reason": 1-sentence danger.
 
-            *** CRITICAL — BOUNDING BOX RULES ***
-            - You MUST ALWAYS return a bounding box in "coordinates" for every valid construction image. NO EXCEPTIONS.
-            - The coordinates array MUST contain exactly 4 normalized float values: [ymin, xmin, ymax, xmax]
-            - All values MUST be between 0.0 and 1.0, representing percentages of image dimensions.
-            - The box MUST tightly surround the identified hazard area.
-            - NEVER return an empty coordinates array [] for a valid construction image.
-            - Example: A hazard in the center-right of the image → [0.25, 0.45, 0.75, 0.90]
-            - Example: A hazard covering most of the image → [0.05, 0.05, 0.95, 0.95]
-            - Example: A small crack in the upper-left → [0.10, 0.08, 0.35, 0.40]
+            STEP 3 — REMEDIATION:
+            Plan for the collective set of hazards.
 
-            STEP 3 — REMEDIATION PLAN:
-            Generate a comprehensive, actionable remediation plan. Be specific with quantities, specs, and trade-level detail.
-
-            Respond in raw JSON only (no markdown, no backticks, no explanation text):
+            Respond in raw JSON:
             {
-                "description": "2-3 sentence expert assessment of the identified hazard, its root cause, and potential consequences if unaddressed.",
-                "severity": "Low" | "Medium" | "High" | "Critical",
-                "coordinates": [ymin, xmin, ymax, xmax],
+                "hazards": [{ "label": "...", "coordinates": [0,0,0,0], "severity": "...", "reason": "..." }],
+                "description": "...",
+                "severity": "...",
                 "remediationPlan": {
-                    "fixSteps": ["Detailed step 1...", "Detailed step 2...", "...at least 3-5 steps"],
-                    "materialsList": ["Qty x Material (exact specs/dimensions)", "..."],
-                    "tooling": ["Specific tool 1", "Specific tool 2", "..."],
-                    "complexity": {
-                        "skillLevel": "Apprentice" | "Journeyman" | "Master",
-                        "laborHoursRange": "X-Y"
-                    },
-                    "safetyWarning": "Specific PPE and safety precautions required for this repair."
+                    "fixSteps": [...],
+                    "materialsList": [...],
+                    "tooling": [...],
+                    "complexity": { "skillLevel": "...", "laborHoursRange": "..." },
+                    "safetyWarning": "..."
                 }
             }
-
-            laborHoursRange examples: "0.5-1", "2-4", "8-12". Always a string range.
-            fixSteps: Minimum 3 steps, maximum 8. Be specific and actionable.
-            materialsList: Include quantities and specifications.
-            safetyWarning: Always include relevant PPE and lockout/tagout if applicable.
         `;
 
         const imagePart = {
@@ -126,7 +110,7 @@ export async function submitHazardReport(formData: FormData) {
                 description: analysis.description,
                 severity: analysis.severity,
                 status: 'Reported',
-                coordinates: JSON.stringify(analysis.coordinates),
+                coordinates: JSON.stringify(analysis.hazards || []),
                 imageId: imageId,
                 remediationPlan: analysis.remediationPlan ? JSON.stringify(analysis.remediationPlan) : "",
                 projectName: projectName,

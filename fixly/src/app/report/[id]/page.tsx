@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { NavBar } from '@/components/NavBar';
 import { ReportRemediationTabs } from '@/components/ReportRemediationTabs';
+import { AuthGuard } from '@/components/AuthGuard';
 import { ArrowLeft, AlertTriangle, Trash2, HardHat, MapPin, CheckCircle2, Clock } from 'lucide-react';
 
 export default async function ReportDetailPage({ params }: { params: { id: string } }) {
@@ -32,20 +33,32 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
 
     const imageUrl = document.imageId ? getImageUrl(document.imageId) : null;
 
-    // Parse bounding box coordinates
-    let coordinates: number[] = [];
+    // Parse hazards and bounding boxes
+    let hazards: { label: string; coordinates: number[]; severity: string; reason?: string }[] = [];
     try {
         if (document.coordinates) {
-            coordinates = JSON.parse(document.coordinates);
+            const parsed = JSON.parse(document.coordinates);
+            if (Array.isArray(parsed)) {
+                if (parsed.length === 4 && typeof parsed[0] === 'number') {
+                    // Legacy format: [ymin, xmin, ymax, xmax]
+                    hazards = [{ label: 'Detected Hazard', coordinates: parsed, severity: document.severity }];
+                } else if (parsed.length > 0 && parsed[0].coordinates) {
+                    // New format: [{ label, coordinates: [ymin, xmin, ymax, xmax], severity }]
+                    hazards = parsed;
+                }
+            }
         }
     } catch (e) { }
 
-    const [ymin, xmin, ymax, xmax] = coordinates.length === 4 ? coordinates : [0, 0, 0, 0];
-    const boxTop = `${ymin * 100}%`;
-    const boxLeft = `${xmin * 100}%`;
-    const boxHeight = `${(ymax - ymin) * 100}%`;
-    const boxWidth = `${(xmax - xmin) * 100}%`;
-    const hasBoundingBox = coordinates.length === 4 && boxWidth !== '0%';
+    const getSeverityBoxStyles = (severity: string) => {
+        switch (severity?.toLowerCase()) {
+            case 'critical': return 'border-red-500 bg-red-500/15 text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]';
+            case 'high': return 'border-orange-500 bg-orange-500/15 text-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)]';
+            case 'medium': return 'border-yellow-500 bg-yellow-500/15 text-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.6)]';
+            case 'low': return 'border-green-500 bg-green-500/15 text-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]';
+            default: return 'border-primary bg-primary/15 text-primary shadow-[0_0_12px_rgba(var(--primary),0.6)]';
+        }
+    };
 
     // Parse remediation plan
     let remediationPlan = null;
@@ -71,98 +84,111 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <NavBar />
+        <AuthGuard>
+            <div className="min-h-screen bg-background">
+                <NavBar />
 
-            <main className="max-w-5xl mx-auto px-6 pt-28 pb-20">
-                <div className="flex flex-col gap-6">
+                <main className="max-w-5xl mx-auto px-6 pt-28 pb-20">
+                    <div className="flex flex-col gap-6">
 
-                    {/* Top Bar: Back + Title + Meta */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <Link href="/dashboard" className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-                                <ArrowLeft className="w-5 h-5" />
-                            </Link>
-                            <div>
-                                <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                                    <HardHat className="w-6 h-6 text-primary" />
-                                    {document.projectName || "Site Inspection"}
-                                </h1>
-                                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                        <MapPin className="w-3.5 h-3.5 text-primary/60" />
-                                        {document.inspectionLocation || "Primary Site"}
-                                    </span>
-                                    <span className="opacity-30">•</span>
-                                    <span className="flex items-center gap-1">
-                                        <Clock className="w-3.5 h-3.5 opacity-60" />
-                                        {new Date(document.$createdAt).toLocaleDateString()}
-                                    </span>
+                        {/* Top Bar: Back + Title + Meta */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Link href="/dashboard" className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                    <ArrowLeft className="w-5 h-5" />
+                                </Link>
+                                <div>
+                                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                                        <HardHat className="w-6 h-6 text-primary" />
+                                        {document.projectName || "Site Inspection"}
+                                    </h1>
+                                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                                        <span className="flex items-center gap-1">
+                                            <MapPin className="w-3.5 h-3.5 text-primary/60" />
+                                            {document.inspectionLocation || "Primary Site"}
+                                        </span>
+                                        <span className="opacity-30">•</span>
+                                        <span className="flex items-center gap-1">
+                                            <Clock className="w-3.5 h-3.5 opacity-60" />
+                                            {new Date(document.$createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center text-primary font-bold text-[11px] bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                    {document.status}
+                                </div>
+                                <div className={`px-3 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wider ${getSeverityColor(document.severity)}`}>
+                                    {document.severity}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center text-primary font-bold text-[11px] bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
-                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                                {document.status}
+                        {/* Image with Bounding Box — Full Width */}
+                        {imageUrl && (
+                            <div className="rounded-2xl overflow-hidden bg-black/5 dark:bg-black/40 border shadow-inner p-4 flex items-center justify-center">
+                                <div className="relative inline-block max-w-full">
+                                    <img
+                                        src={imageUrl}
+                                        alt="Site Photo"
+                                        className="block max-w-full max-h-[60vh] object-contain rounded-xl shadow-md"
+                                    />
+                                    {hazards.map((hazard, index) => {
+                                        const [ymin, xmin, ymax, xmax] = hazard.coordinates;
+                                        const boxTop = `${ymin * 100}%`;
+                                        const boxLeft = `${xmin * 100}%`;
+                                        const boxHeight = `${(ymax - ymin) * 100}%`;
+                                        const boxWidth = `${(xmax - xmin) * 100}%`;
+
+                                        if (boxWidth === '0%' || boxHeight === '0%') return null;
+
+                                        return (
+                                            <div
+                                                key={index}
+                                                className={`absolute border-2 sm:border-[3px] z-10 pointer-events-none rounded-sm animate-pulse ${getSeverityBoxStyles(hazard.severity)}`}
+                                                style={{ top: boxTop, left: boxLeft, width: boxWidth, height: boxHeight }}
+                                            >
+                                                <div className="absolute -top-6 left-0 bg-inherit text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap border-inherit">
+                                                    {hazard.label}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                            <div className={`px-3 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wider ${getSeverityColor(document.severity)}`}>
-                                {document.severity}
+                        )}
+
+                        {/* Tabbed Details Panel */}
+                        {remediationPlan && (
+                            <ReportRemediationTabs plan={remediationPlan} description={document.description || ""} />
+                        )}
+
+                        {/* If no remediation plan, just show description */}
+                        {!remediationPlan && document.description && (
+                            <div className="p-6 rounded-2xl border bg-card/40 backdrop-blur-md shadow-sm">
+                                <h3 className="font-bold text-sm mb-3">Assessment</h3>
+                                <p className="text-sm text-foreground leading-relaxed">{document.description}</p>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Delete */}
+                        <form action={async () => {
+                            'use server';
+                            await deleteReport(id, document.imageId);
+                            redirect('/dashboard');
+                        }}>
+                            <button type="submit" className="w-full group flex items-center justify-center gap-2 h-10 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive/70 text-sm font-semibold hover:bg-destructive hover:text-white transition-all">
+                                <Trash2 className="w-4 h-4" />
+                                Delete This Record
+                            </button>
+                        </form>
+
                     </div>
-
-                    {/* Image with Bounding Box — Full Width */}
-                    {imageUrl && (
-                        <div className="rounded-2xl overflow-hidden bg-black/5 dark:bg-black/40 border shadow-inner p-4 flex items-center justify-center">
-                            <div className="relative inline-block max-w-full">
-                                <img
-                                    src={imageUrl}
-                                    alt="Site Photo"
-                                    className="block max-w-full max-h-[60vh] object-contain rounded-xl shadow-md"
-                                />
-                                {hasBoundingBox && (
-                                    <div
-                                        className="absolute border-2 sm:border-[3px] border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)] bg-red-500/15 z-10 pointer-events-none rounded-sm animate-pulse"
-                                        style={{ top: boxTop, left: boxLeft, width: boxWidth, height: boxHeight }}
-                                    >
-                                        <div className="absolute -top-6 left-0 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
-                                            Detected Hazard
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tabbed Details Panel */}
-                    {remediationPlan && (
-                        <ReportRemediationTabs plan={remediationPlan} description={document.description || ""} />
-                    )}
-
-                    {/* If no remediation plan, just show description */}
-                    {!remediationPlan && document.description && (
-                        <div className="p-6 rounded-2xl border bg-card/40 backdrop-blur-md shadow-sm">
-                            <h3 className="font-bold text-sm mb-3">Assessment</h3>
-                            <p className="text-sm text-foreground leading-relaxed">{document.description}</p>
-                        </div>
-                    )}
-
-                    {/* Delete */}
-                    <form action={async () => {
-                        'use server';
-                        await deleteReport(id, document.imageId);
-                        redirect('/dashboard');
-                    }}>
-                        <button type="submit" className="w-full group flex items-center justify-center gap-2 h-10 rounded-xl border border-destructive/30 bg-destructive/5 text-destructive/70 text-sm font-semibold hover:bg-destructive hover:text-white transition-all">
-                            <Trash2 className="w-4 h-4" />
-                            Delete This Record
-                        </button>
-                    </form>
-
-                </div>
-            </main>
-        </div>
+                </main>
+            </div>
+        </AuthGuard>
     );
 }
